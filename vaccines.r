@@ -1,10 +1,11 @@
 ###--------------------------------------------------
 ### CA Vaccines
+### Kieran Healy
+### 1/29/15
 ### http://www.cdph.ca.gov/programs/immunize/pages/immunizationlevels.aspx
 ### Specifically,
 ### http://www.cdph.ca.gov/programs/immunize/Documents/2014-15%20CA%20Kindergarten%20Data.xlsx
 ###--------------------------------------------------
-
 
 
 library(ggplot2)
@@ -16,22 +17,25 @@ cb.palette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
                     "#0072B2", "#D55E00", "#CC79A7")
 
 
-## Clean version
+## Clean/colhead version.
+## There's a Los Angeles typo in the raw data
 data <- read.csv("data/elementary-schools-1415-CA.csv", header=TRUE)
 
-## Recalculate the rate
+## Missing enrollment data
+no.counts <- is.na(data$enrollment)
+
+## Recalculate the exemption rate
 data$Exempt <- round((data$PBE.n/data$enrollment)*100,2)
 
-## Missing
-no.counts <- is.na(data$enrollment)
 
 ## Working data
 data.sub <- subset(data, subset=!no.counts, select=c("code", "county", "name", "Type", "district", "city", "enrollment", "PBE.pct", "Exempt"))
 
 ## Look
-arrange(data.sub, desc(Exempt))[1:100,c("code", "county", "city","enrollment", "Exempt")]
+arrange(data.sub, desc(Exempt))[1:100,c("name", "county", "city","enrollment", "Exempt")]
 state.rate <- mean(data.sub$Exempt, na.rm=TRUE)
 summarize(data.sub, Mean.PBE = mean(Exempt, na.rm = TRUE))
+
 
 ###--------------------------------------------------
 ### Summary tables
