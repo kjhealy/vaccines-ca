@@ -42,14 +42,43 @@ summarize(data.sub, Mean.PBE = mean(Exempt, na.rm = TRUE))
 ###--------------------------------------------------
 ### Some new Variables
 ###--------------------------------------------------
-relterms <- c()
-religous.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST|DIVINE")
-montdorf <- str_detect(data.sub$name, "MONTESSORI|WALDORF")
+
+## These won't isolate christian schools properly, vis "Christopher
+## Dena Elementary", etc.
+xtian.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST |DIVINE")
+other.relig.name <- str_detect(data.sub$name, "JEWISH|ISLAM")
+mont <- str_detect(data.sub$name, "MONTESSORI")
+waldorf <- str_detect(data.sub$name, "WALDORF")
 charter <- str_detect(data.sub$name, "CHARTER")
 
-data$Type2 <- as.character(data$Type)
-data$Type2[charter] <- "CHARTER"
-data$Type2 <- as.factor(data$Type2)
+data.sub$Type2 <- as.character(data.sub$Type)
+data.sub$Type2[charter] <- "CHARTER"
+data.sub$Type2 <- as.factor(data.sub$Type2)
+
+data.sub$Christian <- xtian.name
+data.sub$OtherRel <- other.relig.name
+data.sub$Montessori <- mont
+data.sub$Waldorf <- waldorf
+data.sub <- unite(data.sub, "MWC", c(Christian, OtherRel, Montessori, Waldorf, Type2))
+
+library(car)
+
+## Public schools are always public even if "Christ" appears in their
+## name; e.g. "Christa McAuliffe Elementary School". Jewish and
+## Islamic Schools are always Private. There are no Charter Waldorf schools.
+data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
+'FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Non-Specific';
+'FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'FALSE_FALSE_FALSE_TRUE_PRIVATE'='Private Waldorf';
+'FALSE_FALSE_FALSE_TRUE_PUBLIC'='Public';
+'FALSE_FALSE_TRUE_FALSE_CHARTER'='Charter Montessori';
+'FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
+'FALSE_FALSE_TRUE_FALSE_PUBLIC'='Public Montessori';
+'FALSE_TRUE_FALSE_FALSE_PRIVATE'='Private Jewish or Islamic';
+'TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Christian';
+'TRUE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'TRUE_FALSE_TRUE_FALSE_PRIVATE'='Private Christian Montessori'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish or Islamic"))
+detach(package:car)
 
 
 ###--------------------------------------------------
@@ -59,6 +88,9 @@ data$Type2 <- as.factor(data$Type2)
 ### By Pub/Private
 by.type <- data.sub %>% group_by(Type) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm = TRUE))
 
+
+### by specific type
+by.mwc <- data.sub %>%  group_by(MWC) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Median.PBE = round(median(Exempt, na.rm=TRUE), 2), Max.PBE = round(max(Exempt, na.rm=TRUE), 2), Min.PBE = round(min(Exempt, na.rm=TRUE), 2), Schools=n(), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
 
 ### By County
 by.county <- data.sub %>% group_by(county) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
@@ -87,7 +119,7 @@ school.by.district <-  data.sub %>% group_by(district, code) %>% summarize(Mean.
 p <- ggplot(by.county, aes(x=log(Students), y=Mean.PBE))
 p1 <- p + geom_point(alpha=0.6) + theme_bw() +
     ylab("Percent of Students with a Personal Belief Exemption") +
-        xlab("log N Students in County \n") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, County Level") + scale_color_manual(values=cb.palette)
+        xlab("log N Students in County \n") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, County Level") + scale_color_manual(values=cb.paltte)
 
 ### Pick out some outliers
 ind <- with(by.county, (Mean.PBE>2*IQR(Mean.PBE)))
@@ -200,12 +232,110 @@ ggsave(
     )
 
 
+
+###--------------------------------------------------
+### Alt type variable
+###--------------------------------------------------
+
+### Get the top schools of each type
+ind <- with(data.sub, (enrollment>200 & Exempt > 10))
+data.out <- data.sub[ind,]
+
+
+p <- ggplot(data.sub, aes(x=log(enrollment), y=Exempt, color=MWC))
+p1 <- p + geom_point(alpha=0.5) + theme_bw() +
+    ylab("Percent of Kindergarten Students with a Personal Belief Exemption") +
+        xlab("log N Kindergarten Students\n") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + ylim(0,100) + scale_color_manual(values=cb.palette) + theme(legend.position="top")
+
+p2 <- p1 + geom_text(data=data.out, aes(x=log(enrollment), y=Exempt, label=name), hjust=0.8, vjust=-1.2, size=2, alpha=1) + labs(color="School Type")
+
+
+pdf(file="figures/pbe-by-school-mwc.pdf", width=8, height=8)
+print(p2)
+credit("Data: CA Dept of Public Health, 2015. Kieran Healy: http://kieranhealy.org")
+dev.off()
+
+ggsave(
+    "figures/pbe-by-school-mwc.png",
+    p2,
+    width=8,
+    height=8,
+    dpi=300
+    )
+
+
+
+###--------------------------------------------------
+### MWC jittered boxplot
+###--------------------------------------------------
+library(RColorBrewer)
+
+aux.info <- data.sub %>%  group_by(MWC) %>% summarize(Schools=n(), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit()
+aux.info$Summary <- paste(aux.info$Schools, " Schools enrolling\n", aux.info$Students, " Kindergarteners", sep="")
+
+make.jit.plot <- function(dat=data.sub,
+                          pw=0.4, ph=0.25, palpha=0.4,
+                          title="Vaccination Exemption Rates in California Kindergartens, by Type of School"){
+    theme <- theme_set(theme_minimal())
+    theme <- theme_update(panel.grid.major.x=element_blank())
+    jit <- position_jitter(width=pw, height=ph)
+
+    colorCount <- length(levels(dat$MWC))
+    getPalette <- colorRampPalette(brewer.pal(8, "Dark2"))
+
+    p <- ggplot(dat, aes(y=PBE.pct, x=MWC, size=enrollment, fill=MWC))
+    p1 <- p + geom_jitter(shape=21, position = jit, alpha=palpha, color="gray80")
+    p2 <- p1 + xlab("") + coord_flip() + ggtitle(title) + guides(color=FALSE,
+                                                                 shape=FALSE,
+                                                                 fill=FALSE,
+                                                                 size = guide_legend(override.aes = list(fill = "black"))) +
+        scale_size(trans="log", breaks=c(10, 20, 50, 100, 250, 400), range=c(1,6)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
+            ylab("Percent with a Personal Belief Exemption from Vaccination\n") +
+                theme(legend.position = "top")
+ return(p2)
+}
+
+pdf(file="figures/pbe-by-school-type-jit.pdf", height=6, width=12, pointsize = 11)
+p <- make.jit.plot()
+p + annotate("text", x=seq(1.25, 10.25, 1), y=98, label=aux.info$Summary, size=1.9)
+credit("Data: California DPH, 2015. Kieran Healy: http://kieranhealy.org")
+dev.off()
+
+
+### County-level Jit Plot
+make.jit.plot <- function(dat=data.sub,
+                          pw=0.4, ph=0.25, palpha=0.4,
+                          title="Vaccination Exemption Rates in California Kindergartens, by County and type of School"){
+    theme <- theme_set(theme_minimal())
+    theme <- theme_update(panel.grid.major.x=element_blank())
+    jit <- position_jitter(width=pw, height=ph)
+
+    o <-
+
+    colorCount <- length(levels(dat$county))
+    getPalette <- colorRampPalette(brewer.pal(8, "Dark2"))
+
+    p <- ggplot(dat, aes(y=PBE.pct, x=county, size=enrollment, fill=MWC))
+    p1 <- p + geom_jitter(shape=21, position = jit, alpha=palpha, color="gray80")
+    p2 <- p1 + xlab("") + coord_flip() + ggtitle(title) + guides(color=FALSE,
+                                                                 shape=FALSE,
+                                                                 fill=FALSE,
+                                                                 size = guide_legend(override.aes = list(fill = "black"))) +
+        scale_size(trans="log", breaks=c(10, 20, 50, 100, 250, 400), range=c(1,6)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
+            ylab("Percent with a Personal Belief Exemption from Vaccination\n") +
+                theme(legend.position = "top")
+ return(p2)
+}
+
+
+
+
 ###--------------------------------------------------
 ### Correlations
 ###--------------------------------------------------
 
 ## Medical exemptions are separate from PBEs
-p <- ggplot(data.sub, aes(x=Exempt, y=Med.Exempt, color=Type, size=log(enrollment)))
+pp <- ggplot(data.sub, aes(x=Exempt, y=Med.Exempt, color=Type, size=log(enrollment)))
 p + geom_point(alpha=0.5) + theme_bw() +
     ylab("Percent of Kindergarten Students with a Medical Exemption") +
         xlab("Percent of Kindergarten Students with a Personal Belief Exemption") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + scale_color_manual(values=cb.palette[c(2,6)]) + theme(legend.position="top")
