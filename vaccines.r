@@ -26,15 +26,30 @@ no.counts <- is.na(data$enrollment)
 
 ## Recalculate the exemption rate
 data$Exempt <- round((data$PBE.n/data$enrollment)*100,2)
+data$Med.Exempt <- round((data$PME.n/data$enrollment)*100,2)
+data$Rel.Exempt <- round((data$RelPBE.n/data$enrollment)*100,2)
 
 
 ## Working data
-data.sub <- subset(data, subset=!no.counts, select=c("code", "county", "name", "Type", "district", "city", "enrollment", "PBE.pct", "Exempt"))
+data.sub <- subset(data, subset=!no.counts, select=c("code", "county", "name", "Type", "district", "city", "enrollment", "PBE.pct", "Exempt", "Med.Exempt", "Rel.Exempt"))
 
 ## Look
-arrange(data.sub, desc(Exempt))[1:100,c("name", "county", "city","enrollment", "Exempt")]
+arrange(data.sub, desc(Exempt))[1:200,c("name", "county", "city","enrollment", "Exempt")]
 state.rate <- mean(data.sub$Exempt, na.rm=TRUE)
 summarize(data.sub, Mean.PBE = mean(Exempt, na.rm = TRUE))
+
+
+###--------------------------------------------------
+### Some new Variables
+###--------------------------------------------------
+relterms <- c()
+religous.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST|DIVINE")
+montdorf <- str_detect(data.sub$name, "MONTESSORI|WALDORF")
+charter <- str_detect(data.sub$name, "CHARTER")
+
+data$Type2 <- as.character(data$Type)
+data$Type2[charter] <- "CHARTER"
+data$Type2 <- as.factor(data$Type2)
 
 
 ###--------------------------------------------------
@@ -183,3 +198,21 @@ ggsave(
     height=8,
     dpi=300
     )
+
+
+###--------------------------------------------------
+### Correlations
+###--------------------------------------------------
+
+## Medical exemptions are separate from PBEs
+p <- ggplot(data.sub, aes(x=Exempt, y=Med.Exempt, color=Type, size=log(enrollment)))
+p + geom_point(alpha=0.5) + theme_bw() +
+    ylab("Percent of Kindergarten Students with a Medical Exemption") +
+        xlab("Percent of Kindergarten Students with a Personal Belief Exemption") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + scale_color_manual(values=cb.palette[c(2,6)]) + theme(legend.position="top")
+
+
+## Religous exemptions are a subset of personal belief exemptions
+p <- ggplot(data.sub, aes(x=Exempt, y=Rel.Exempt, color=Type, size=log(enrollment)))
+p + geom_point(alpha=0.5) + theme_bw() +
+    ylab("Percent of Kindergarten Students with a Religious Exemption") +
+        xlab("Percent of Kindergarten Students with a Personal Belief Exemption") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + scale_color_manual(values=cb.palette[c(2,6)]) + theme(legend.position="top")
