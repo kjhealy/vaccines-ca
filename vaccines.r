@@ -274,14 +274,14 @@ aux.info <- data.sub %>%  group_by(MWC) %>% summarize(Schools=n(), Students=sum(
 aux.info$Summary <- paste(aux.info$Schools, " Schools enrolling\n", aux.info$Students, " Kindergarteners", sep="")
 
 make.jit.plot <- function(dat=data.sub,
-                          pw=0.4, ph=0.25, palpha=0.4,
+                          pw=0.3, ph=0.25, palpha=0.4,
                           title="Vaccination Exemption Rates in California Kindergartens, by Type of School"){
     theme <- theme_set(theme_minimal())
     theme <- theme_update(panel.grid.major.x=element_blank())
     jit <- position_jitter(width=pw, height=ph)
 
     colorCount <- length(levels(dat$MWC))
-    getPalette <- colorRampPalette(brewer.pal(8, "Dark2"))
+    getPalette <- colorRampPalette(brewer.pal(8, "Set2"))
 
     p <- ggplot(dat, aes(y=PBE.pct, x=MWC, size=enrollment, fill=MWC))
     p1 <- p + geom_jitter(shape=21, position = jit, alpha=palpha, color="gray80")
@@ -289,7 +289,7 @@ make.jit.plot <- function(dat=data.sub,
                                                                  shape=FALSE,
                                                                  fill=FALSE,
                                                                  size = guide_legend(override.aes = list(fill = "black"))) +
-        scale_size(trans="log", breaks=c(10, 20, 50, 100, 250, 400), range=c(1,6)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
+        scale_size(breaks=c(20, 40, 75, 100, 300), range=c(1,10)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
             ylab("Percent with a Personal Belief Exemption from Vaccination\n") +
                 theme(legend.position = "top")
  return(p2)
@@ -297,9 +297,26 @@ make.jit.plot <- function(dat=data.sub,
 
 pdf(file="figures/pbe-by-school-type-jit.pdf", height=6, width=12, pointsize = 11)
 p <- make.jit.plot()
-p + annotate("text", x=seq(1.25, 10.25, 1), y=98, label=aux.info$Summary, size=1.9)
+p1 <- p + annotate("text", x=seq(1.25, 10.25, 1), y=98, label=aux.info$Summary, size=1.9)
 credit("Data: California DPH, 2015. Kieran Healy: http://kieranhealy.org")
+print(p1)
 dev.off()
+
+ggsave(
+    "figures/pbe-by-school-type-jit.png",
+    p1,
+    width=12,
+    height=6,
+    dpi=300
+    )
+
+ggsave(
+    "figures/pbe-by-school-type-jit.jpg",
+    p1,
+    width=12,
+    height=6,
+    dpi=300
+    )
 
 
 ### County-level Jit Plot
@@ -326,7 +343,7 @@ make.jit.plot <- function(dat=data.co[!ind,],
     p2 <- p1 + xlab("") + coord_flip() + ggtitle(title) + guides(color=FALSE,
                                                                  shape=FALSE,
                                                                  size = guide_legend(override.aes = list(fill = "black", alpha=1))) +
-        scale_size(trans="log", breaks=c(20, 100, 300), range=c(2,4)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
+        scale_size(breaks=c(30, 100, 250), range=c(1.2,6)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
             ylab("Percent with a Personal Belief Exemption from Vaccination (10% or greater shown only)\n") +
                 theme(legend.position = "top")
  return(p2)
