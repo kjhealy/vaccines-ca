@@ -54,7 +54,7 @@ charter <- str_detect(data.sub$name, "CHARTER")
 data.sub$Type2 <- as.character(data.sub$Type)
 data.sub$Type2[charter] <- "CHARTER"
 data.sub$Type2 <- as.factor(data.sub$Type2)
-
+data.sub$Kind <- data.sub$Type2
 data.sub$Christian <- xtian.name
 data.sub$OtherRel <- other.relig.name
 data.sub$Montessori <- mont
@@ -303,30 +303,47 @@ dev.off()
 
 
 ### County-level Jit Plot
-make.jit.plot <- function(dat=data.sub,
-                          pw=0.4, ph=0.25, palpha=0.4,
-                          title="Vaccination Exemption Rates in California Kindergartens, by County and type of School"){
+data.co <- data.sub
+library(gdata)
+data.co$county <- reorder.factor(data.co$county, new.order = rev(as.character(by.county$county)))
+detach(package:gdata)
+
+ind <- data.co$PBE.pct<10
+
+make.jit.plot <- function(dat=data.co[!ind,],
+                          pw=0.25, ph=0.2, palpha=0.6,
+                          title="Vaccination Exemption Rates in California Kindergartens by County: \nSchools with 10 percent PBEs or higher"){
     theme <- theme_set(theme_minimal())
     theme <- theme_update(panel.grid.major.x=element_blank())
     jit <- position_jitter(width=pw, height=ph)
 
-    o <-
-
     colorCount <- length(levels(dat$county))
-    getPalette <- colorRampPalette(brewer.pal(8, "Dark2"))
+    getPalette <- colorRampPalette(brewer.pal(8, "Set2"))
 
-    p <- ggplot(dat, aes(y=PBE.pct, x=county, size=enrollment, fill=MWC))
+    p <- ggplot(dat,
+                aes(y=PBE.pct, x=county, size=enrollment, fill=Kind))
     p1 <- p + geom_jitter(shape=21, position = jit, alpha=palpha, color="gray80")
     p2 <- p1 + xlab("") + coord_flip() + ggtitle(title) + guides(color=FALSE,
                                                                  shape=FALSE,
-                                                                 fill=FALSE,
-                                                                 size = guide_legend(override.aes = list(fill = "black"))) +
-        scale_size(trans="log", breaks=c(10, 20, 50, 100, 250, 400), range=c(1,6)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
-            ylab("Percent with a Personal Belief Exemption from Vaccination\n") +
+                                                                 size = guide_legend(override.aes = list(fill = "black", alpha=1))) +
+        scale_size(trans="log", breaks=c(20, 100, 300), range=c(2,4)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
+            ylab("Percent with a Personal Belief Exemption from Vaccination (10% or greater shown only)\n") +
                 theme(legend.position = "top")
  return(p2)
 }
 
+pdf(file="figures/pbe-by-county-jit.pdf", height=22, width=8)
+p <- make.jit.plot()
+print(p)
+dev.off()
+
+ggsave(
+    "figures/pbe-by-county-jit.png",
+    p,
+    width=8,
+    height=20,
+    dpi=300
+    )
 
 
 
