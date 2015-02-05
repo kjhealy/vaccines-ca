@@ -118,7 +118,7 @@ by.mwc <- data.sub %>%  group_by(MWC) %>% summarize(Mean.PBE = round(mean(Exempt
 by.county <- data.sub %>% group_by(county) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
 
 ### By School within County
-school.by.county <- data.sub %>% group_by(county, code) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
+school.by.county <- data.sub %>% group_by(county, name) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
 
 ### By City
 by.city <- data.sub %>% group_by(city) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
@@ -132,6 +132,11 @@ by.district <- data.sub %>% group_by(district) %>% summarize(Mean.PBE = round(me
 ### By School within District
 school.by.district <-  data.sub %>% group_by(district, code) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
 
+### By School within Type
+school.by.type <- data.sub %>% group_by(MWC, name) %>% summarize(Mean.PBE = round(mean(Exempt, na.rm=TRUE), 2), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit() %>% arrange(desc(Mean.PBE))
+
+filter(school.by.type, MWC=="Private Catholic") # Top Catholic PBE is
+                                        # a homeschool service
 
 ###--------------------------------------------------
 ### Plots
@@ -312,7 +317,7 @@ make.jit.plot <- function(dat=data.sub,
                                                                  fill=FALSE,
                                                                  size = guide_legend(override.aes = list(fill = "black"))) +
         scale_size(breaks=c(20, 40, 75, 100, 300), range=c(1,10)) + scale_color_manual(values=getPalette(colorCount)) + labs(size="Number of Kindergarteners in each School") +
-            ylab("Percent with a Personal Belief Exemption from Vaccination\n") +
+            ylab("Percent of Kindergarteners with a Personal Belief Exemption from Vaccination\n") +
                 theme(legend.position = "top")
  return(p2)
 }
