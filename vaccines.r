@@ -11,8 +11,8 @@
 library(ggplot2)
 library(dplyr)
 library(stringr)
-library(kjhutils) # for the credit line
-
+library(kjhutils)
+library(pander)
 cb.palette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
                     "#0072B2", "#D55E00", "#CC79A7")
 
@@ -52,18 +52,15 @@ scm <- DocumentTermMatrix(sc)
 scfreq <- colSums(as.matrix(scm))
 o <- order(scfreq, decreasing = TRUE)
 nlist <- toupper(names(scfreq[o[1:250]])) ## Most common words in School names, excluding
-## stopwords aboave
-
-sc <- tm_map(sc, removeWords, c("SCHOOL", "ELEMENTARY"))
 
 
 detach(package:tm)
 detach(package:NLP)
 
 ## These won't isolate christian schools properly, vis "Christopher
-## Dena Elementary", etc.
+## Dena Elementary", etc. Lutheran schools can have Saints' names
 xtian.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST |BAPTIST")
-catholic <- str_detect(data.sub$name, "CATHOLIC|SAINT |PARISH|PAROCHIAL|DIVINE ")
+catholic <- str_detect(data.sub$name, "CATHOLIC|SAINT |ST\\. |PARISH|PAROCHIAL|DIVINE ")
 other.relig.name <- str_detect(data.sub$name, "JEWISH|ISLAM")
 mont <- str_detect(data.sub$name, "MONTESSORI")
 waldorf <- str_detect(data.sub$name, "WALDORF")
@@ -84,7 +81,9 @@ library(car)
 
 ## Public schools are always public even if "Christ" appears in their
 ## name; e.g. "Christa McAuliffe Elementary School". Jewish and
-## Islamic Schools are always Private. There are no Charter Waldorf schools.
+## Islamic Schools are always Private. There are no Charter Waldorf
+## schools. Lutheran schools can have Saints's names
+##
 data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
 'FALSE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Non-Specific';
 'FALSE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
@@ -99,7 +98,15 @@ data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='C
 'FALSE_TRUE_FALSE_TRUE_FALSE_PRIVATE'='Private Christian Montessori';
 'TRUE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic';
 'TRUE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'TRUE_FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
 'TRUE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Catholic", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish or Islamic"))
+
+
+lutheran <- str_detect(data.sub$name, "LUTHERAN")
+data.sub[lutheran, "MWC"] <- "Private Christian"
+
+## This misses one Catholic montessori
+
 detach(package:car)
 
 
@@ -390,6 +397,49 @@ ggsave(
     )
 
 
+### Simpler version
+dat <- by.mwc
+o <- as.character(dat$MWC[order(dat$Mean.PBE)])
+dat$Type <- factor(dat$MWC, levels=o, ordered=TRUE)
+aux.info <- data.sub %>%  group_by(MWC) %>% summarize(Schools=n(), Students=sum(enrollment, na.rm=TRUE), Exempt=mean(Exempt, na.rm=TRUE)) %>% arrange(Exempt) %>% na.omit()
+aux.info$Summary <- paste(aux.info$Schools, " Schools enrolling\n", aux.info$Students, " Kindergarteners", sep="")
+
+p <-  ggplot(dat, aes(y=Mean.PBE, x=Type))
+p1 <- p + geom_point(stat="identity", fill="grey50", aes(order=Mean.PBE), size=3) + xlab("") + ylim(0,60) + coord_flip() + ylab("Percent of Enrolled Kindergarteners with a Personal Belief Exemption\n\n")
+
+pdf(file="figures/pbe-by-type-dot.pdf", height=6, width=9)
+p2 <- p1 + annotate("text", x=seq(1, 11.25, 1), y=55, label=aux.info$Summary, size=2.1)
+print(p2)
+credit("Data: CDPH 2015. Kieran Healy: http://kieranhealy.org")
+dev.off()
+
+ggsave(
+    "figures/pbe-by-type-dot.png",
+    p2,
+    width=9,
+    height=6,
+    dpi=300
+    )
+
+
+ggsave(
+    "figures/pbe-by-type-dot.jpg",
+    p2,
+    width=9,
+    height=6,
+    dpi=300
+    )
+
+
+library(productplots)
+library(Hmisc)
+data.sub$Exemptions <- factor(cut2(data.sub$Exempt, c(1,5,10,20,40,60,80)), labels=c("<1", "1-5", "5-10", "10-20", "20-40", "40-60", "60-80", "80-100"))
+data.sub$Type <- data.sub$MWC
+pdf(file="figures/pbe-by-type-mosaic.pdf", height=15, width=15)
+prodplot(data.sub, ~ Exemptions + Type, na.rm=TRUE, c("vspine", "hspine")) + theme(axis.text.x=element_text(angle = 90), axis.title.x=element_text(" ")) + coord_flip()
+dev.off()
+detach(package:Hmisc)
+detach(package:productplots)
 
 ###--------------------------------------------------
 ### Correlations
