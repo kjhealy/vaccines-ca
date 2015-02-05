@@ -431,15 +431,28 @@ ggsave(
     )
 
 
-library(productplots)
-library(Hmisc)
-data.sub$Exemptions <- factor(cut2(data.sub$Exempt, c(1,5,10,20,40,60,80)), labels=c("<1", "1-5", "5-10", "10-20", "20-40", "40-60", "60-80", "80-100"))
-data.sub$Type <- data.sub$MWC
-pdf(file="figures/pbe-by-type-mosaic.pdf", height=15, width=15)
-prodplot(data.sub, ~ Exemptions + Type, na.rm=TRUE, c("vspine", "hspine")) + theme(axis.text.x=element_text(angle = 90), axis.title.x=element_text(" ")) + coord_flip()
+## library(productplots)
+## library(Hmisc)
+## data.sub$Exemptions <- factor(cut2(data.sub$Exempt, c(1,5,10,20,40,60,80)), labels=c("<1", "1-5", "5-10", "10-20", "20-40", "40-60", "60-80", "80-100"))
+## data.sub$Type <- data.sub$MWC
+## pdf(file="figures/pbe-by-type-mosaic.pdf", height=15, width=18)
+## prodplot(data.sub, ~ Exemptions + Type, na.rm=TRUE, c("vspine", "hspine")) + theme(axis.text.x=element_text(angle = 90), axis.title.x=element_text(" ")) + coord_flip()
+## dev.off()
+## detach(package:Hmisc)
+## detach(package:productplots)
+
+pdf(file="figures/pbe-by-type-mosaic.pdf", height=12, width=13)
+tab1 <- table(data.sub$Exemptions, data.sub$Type)
+par(las=2)
+mosaicplot(tab1, color=cb.palette, main="Exemption Rate", xlab="Percent")
 dev.off()
-detach(package:Hmisc)
-detach(package:productplots)
+
+jpeg(file="figures/pbe-by-type-mosaic.jpg", height=4096, width=4000, quality=95, res=300)
+tab1 <- table(data.sub$Exemptions, data.sub$Type)
+par(las=2)
+mosaicplot(tab1, color=cb.palette, main="Exemption Rate", xlab="Percent")
+dev.off()
+
 
 ###--------------------------------------------------
 ### Correlations
