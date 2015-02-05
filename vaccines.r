@@ -43,9 +43,27 @@ summarize(data.sub, Mean.PBE = mean(Exempt, na.rm = TRUE))
 ### Some new Variables
 ###--------------------------------------------------
 
+## Inspecting School names
+library(tm)
+sc <- VCorpus(VectorSource(data.sub$name))
+sc <- tm_map(sc, removeWords, c("SCHOOL", "SCHOOLS", "ELEMENTARY", "THE", "OF", "AND", "FOR", "LOS", "DEL"))
+
+scm <- DocumentTermMatrix(sc)
+scfreq <- colSums(as.matrix(scm))
+o <- order(scfreq, decreasing = TRUE)
+nlist <- toupper(names(scfreq[o[1:250]])) ## Most common words in School names, excluding
+## stopwords aboave
+
+sc <- tm_map(sc, removeWords, c("SCHOOL", "ELEMENTARY"))
+
+
+detach(package:tm)
+detach(package:NLP)
+
 ## These won't isolate christian schools properly, vis "Christopher
 ## Dena Elementary", etc.
-xtian.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST |DIVINE")
+xtian.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST |BAPTIST")
+catholic <- str_detect(data.sub$name, "CATHOLIC|SAINT |PARISH|PAROCHIAL|DIVINE ")
 other.relig.name <- str_detect(data.sub$name, "JEWISH|ISLAM")
 mont <- str_detect(data.sub$name, "MONTESSORI")
 waldorf <- str_detect(data.sub$name, "WALDORF")
@@ -55,29 +73,33 @@ data.sub$Type2 <- as.character(data.sub$Type)
 data.sub$Type2[charter] <- "CHARTER"
 data.sub$Type2 <- as.factor(data.sub$Type2)
 data.sub$Kind <- data.sub$Type2
+data.sub$Catholic <- catholic
 data.sub$Christian <- xtian.name
 data.sub$OtherRel <- other.relig.name
 data.sub$Montessori <- mont
 data.sub$Waldorf <- waldorf
-data.sub <- unite(data.sub, "MWC", c(Christian, OtherRel, Montessori, Waldorf, Type2))
+data.sub <- unite(data.sub, "MWC", c(Catholic, Christian, OtherRel, Montessori, Waldorf, Type2))
 
 library(car)
 
 ## Public schools are always public even if "Christ" appears in their
 ## name; e.g. "Christa McAuliffe Elementary School". Jewish and
 ## Islamic Schools are always Private. There are no Charter Waldorf schools.
-data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
-'FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Non-Specific';
-'FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
-'FALSE_FALSE_FALSE_TRUE_PRIVATE'='Private Waldorf';
-'FALSE_FALSE_FALSE_TRUE_PUBLIC'='Public';
-'FALSE_FALSE_TRUE_FALSE_CHARTER'='Charter Montessori';
-'FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
-'FALSE_FALSE_TRUE_FALSE_PUBLIC'='Public Montessori';
-'FALSE_TRUE_FALSE_FALSE_PRIVATE'='Private Jewish or Islamic';
-'TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Christian';
-'TRUE_FALSE_FALSE_FALSE_PUBLIC'='Public';
-'TRUE_FALSE_TRUE_FALSE_PRIVATE'='Private Christian Montessori'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish or Islamic"))
+data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
+'FALSE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Non-Specific';
+'FALSE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'FALSE_FALSE_FALSE_FALSE_TRUE_PRIVATE'='Private Waldorf';
+'FALSE_FALSE_FALSE_FALSE_TRUE_PUBLIC'='Public';
+'FALSE_FALSE_FALSE_TRUE_FALSE_CHARTER'='Charter Montessori';
+'FALSE_FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
+'FALSE_FALSE_FALSE_TRUE_FALSE_PUBLIC'='Public Montessori';
+'FALSE_FALSE_TRUE_FALSE_FALSE_PRIVATE'='Private Jewish or Islamic';
+'FALSE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Christian';
+'FALSE_TRUE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'FALSE_TRUE_FALSE_TRUE_FALSE_PRIVATE'='Private Christian Montessori';
+'TRUE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic';
+'TRUE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
+'TRUE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Catholic", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish or Islamic"))
 detach(package:car)
 
 
@@ -295,26 +317,26 @@ make.jit.plot <- function(dat=data.sub,
  return(p2)
 }
 
-pdf(file="figures/pbe-by-school-type-jit.pdf", height=6, width=12, pointsize = 11)
+pdf(file="figures/pbe-by-school-type-jit.pdf", height=8, width=10, pointsize = 11)
 p <- make.jit.plot()
-p1 <- p + annotate("text", x=seq(1.25, 10.25, 1), y=98, label=aux.info$Summary, size=1.9)
-credit("Data: California DPH, 2015. Kieran Healy: http://kieranhealy.org")
+p1 <- p + annotate("text", x=seq(1.25, 11.25, 1), y=92, label=aux.info$Summary, size=2.1)
 print(p1)
+credit("Data: California DPH, 2015. Kieran Healy: http://kieranhealy.org")
 dev.off()
 
 ggsave(
     "figures/pbe-by-school-type-jit.png",
     p1,
-    width=12,
-    height=6,
+    width=10,
+    height=8,
     dpi=300
     )
 
 ggsave(
     "figures/pbe-by-school-type-jit.jpg",
     p1,
-    width=12,
-    height=6,
+    width=10,
+    height=8,
     dpi=300
     )
 
