@@ -57,6 +57,7 @@ nlist <- toupper(names(scfreq[o[1:250]])) ## Most common words in School names, 
 detach(package:tm)
 detach(package:NLP)
 
+library(tidyr)
 ## These won't isolate christian schools properly, vis "Christopher
 ## Dena Elementary", etc. Lutheran schools can have Saints' names
 xtian.name <- str_detect(data.sub$name, "CHRISTIAN|FAITH|LUTHERAN|CHRIST |BAPTIST")
@@ -84,7 +85,7 @@ library(car)
 ## Islamic Schools are always Private. There are no Charter Waldorf
 ## schools. Lutheran schools can have Saints's names
 ##
-data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
+data.sub$MWC <- car::recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='Charter';
 'FALSE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Non-Specific';
 'FALSE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
 'FALSE_FALSE_FALSE_FALSE_TRUE_PRIVATE'='Private Waldorf';
@@ -92,15 +93,14 @@ data.sub$MWC <- recode(data.sub$MWC, "'FALSE_FALSE_FALSE_FALSE_FALSE_CHARTER'='C
 'FALSE_FALSE_FALSE_TRUE_FALSE_CHARTER'='Charter Montessori';
 'FALSE_FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
 'FALSE_FALSE_FALSE_TRUE_FALSE_PUBLIC'='Public Montessori';
-'FALSE_FALSE_TRUE_FALSE_FALSE_PRIVATE'='Private Jewish or Islamic';
+'FALSE_FALSE_TRUE_FALSE_FALSE_PRIVATE'='Private Jewish/Islamic';
 'FALSE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Christian';
 'FALSE_TRUE_FALSE_FALSE_FALSE_PUBLIC'='Public';
 'FALSE_TRUE_FALSE_TRUE_FALSE_PRIVATE'='Private Christian Montessori';
 'TRUE_FALSE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic';
 'TRUE_FALSE_FALSE_FALSE_FALSE_PUBLIC'='Public';
 'TRUE_FALSE_FALSE_TRUE_FALSE_PRIVATE'='Private Montessori';
-'TRUE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Catholic", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish or Islamic"))
-
+'TRUE_TRUE_FALSE_FALSE_FALSE_PRIVATE'='Private Catholic'", as.factor.result=TRUE, levels=c("Public", "Charter", "Private Non-Specific", "Private Christian", "Private Catholic", "Private Montessori", "Private Waldorf", "Charter Montessori", "Public Montessori", "Private Christian Montessori", "Private Jewish/Islamic"))
 
 lutheran <- str_detect(data.sub$name, "LUTHERAN")
 data.sub[lutheran, "MWC"] <- "Private Christian"
@@ -276,7 +276,7 @@ ind <- with(data.sub, (enrollment>200 & Exempt > 10))
 data.out <- data.sub[ind,]
 
 
-p <- ggplot(data.sub, aes(x=log(enrollment), y=Exempt, color=MWC))
+p <- ggplot(data.out, aes(x=log(enrollment), y=Exempt, color=MWC))
 p1 <- p + geom_point(alpha=0.5) + theme_bw() +
     ylab("Percent of Kindergarten Students with a Personal Belief Exemption") +
         xlab("log N Kindergarten Students\n") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + ylim(0,100) + scale_color_manual(values=cb.palette) + theme(legend.position="top")
@@ -470,3 +470,96 @@ p <- ggplot(data.sub, aes(x=Exempt, y=Rel.Exempt, color=Type, size=log(enrollmen
 p + geom_point(alpha=0.5) + theme_bw() +
     ylab("Percent of Kindergarten Students with a Religious Exemption") +
         xlab("Percent of Kindergarten Students with a Personal Belief Exemption") +  ggtitle("Kindergarten Vaccine Exemption Rates in California, School Level") + scale_color_manual(values=cb.palette[c(2,6)]) + theme(legend.position="top")
+
+
+
+###--------------------------------------------------
+### Beeswarm plot
+###--------------------------------------------------
+
+library(RColorBrewer)
+
+library(ggbeeswarm)
+
+
+aux.info <- data.sub %>%  group_by(MWC) %>% summarize(Schools=n(), Students=sum(enrollment, na.rm=TRUE)) %>% na.omit()
+aux.info$Summary <- paste(aux.info$Schools, " Schools enrolling\n", aux.info$Students, " Kindergarteners", sep="")
+
+## Format the numbers with commas
+aux.info$Summary2 <- paste(formatC(aux.info$Schools, format="d", big.mark = ","),
+                           " Schools\n",
+                           formatC(aux.info$Students, format="d", big.mark=","),
+                           " Kindergarteners", sep="")
+
+aux.info$School.labs <- c("Public", "Charter", "Private\nNon-Specific",
+                          "Private\nChristian", "Private\nCatholic", "Private\nMontessori", "Private\nWaldorf", "Charter\nMontessori", "Public\nMontessori", "Private\nChristian\nMontessori",
+                          "Private Jewish\nor Islamic")
+
+## Force newlines for top annotation
+addline_format <- function(x,...){
+    gsub('\\s','\n',x)
+}
+
+make.bee.plot <- function(dat=data.sub,
+                          balpha=0.3,
+                          bwidth=0.9,
+                          varwidth=FALSE,
+                          method="quasirandom",
+                          title="Vaccination Exemption Rates in California Kindergartens",
+                          subtitle="Percent of Kindergarteners with a Personal Belief Exemption, by Type and Size of School."){
+    theme <- theme_set(theme_minimal())
+    theme <- theme_update(panel.grid.major.x=element_blank())
+
+    colorCount <- length(levels(dat$MWC))
+    getPalette <- colorRampPalette(brewer.pal(8, "Set2"))
+
+    p <- ggplot(dat, aes(y=PBE.pct, x=MWC, size=enrollment, fill=MWC))
+
+    p1 <- p + geom_quasirandom(shape=21, alpha=balpha,
+                               color="gray30",
+                               method=method,
+                               varwidth=varwidth,
+                               bandwidth=bwidth,
+                               position=position)
+
+    p2 <- p1 + xlab("") + ggtitle(title, subtitle=subtitle) + guides(color=FALSE,
+                            shape=FALSE,
+                            fill=FALSE,
+                            size = guide_legend(override.aes =
+                                                    list(fill = "black"))) +
+        scale_size(breaks=c(20, 40, 75, 100, 300),
+                   range=c(1,10)) +
+        scale_color_manual(values=getPalette(colorCount)) +
+        labs(size="Number of Kindergarteners in each School") +
+            ylab("Percent") +
+        theme(legend.position = "bottom",
+              axis.title.x = element_blank(),
+              axis.text.x = element_blank())
+ return(p2)
+}
+
+pdf(file="figures/pbe-by-school-type-bee.pdf", height=8, width=12, pointsize = 12)
+
+aux.info.sub <- subset(aux.info, MWC %nin% c("Private Jewish/Islamic", "Private Christian Montessori"))
+auxlen <- nrow(aux.info.sub)
+
+p <- make.bee.plot(dat=subset(data.sub, MWC %nin% c("Private Jewish/Islamic", "Private Christian Montessori")),
+                   bwidth=0.7,
+                   method="quasirandom")
+p1 <- p + annotate("text", x=seq(1, auxlen, 1), y=-4,
+                   label=aux.info.sub$Summary2, size=2)
+p2 <- p1 + annotate("text", x=seq(1, auxlen, 1), y=-10, size=3,
+                    fontface="bold",
+                    label=addline_format(aux.info.sub$MWC))
+
+print(p2)
+credit("Data: California DPH, 2015.\nKieran Healy: http://kieranhealy.org")
+dev.off()
+
+ggsave(
+    "figures/pbe-by-school-type-bee.jpg",
+    p2,
+    width=12,
+    height=8,
+    dpi=300
+    )
